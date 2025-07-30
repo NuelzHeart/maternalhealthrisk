@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - Maternal Health</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        /* Optional: Add some custom scrollbar styling if needed */
+        .table-container {
+            max-height: 600px; /* Adjust as needed */
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        .table-container::-webkit-scrollbar {
+            width: 8px;
+        }
+        .table-container::-webkit-scrollbar-thumb {
+            background-color: #a78bfa; /* purple-400 */
+            border-radius: 4px;
+        }
+        .table-container::-webkit-scrollbar-track {
+            background-color: #ede9fe; /* purple-100 */
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-purple-50 to-indigo-100 min-h-screen font-sans">
+    <div class="container mx-auto px-4 py-8">
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-indigo-800 mb-2">🔒 Admin Panel</h1>
+            <p class="text-gray-600">Manage Maternal Health Assessments</p>
+        </div>
+
+        <div id="alertContainer" class="mb-6 hidden">
+            <div id="successAlert" class="hidden bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative" role="alert">
+                <span class="block sm:inline" id="successMessage"></span>
+            </div>
+            <div id="errorAlert" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+                <span class="block sm:inline" id="errorMessage"></span>
+            </div>
+        </div>
+
+        <div id="authSection" class="max-w-md mx-auto bg-white rounded-xl shadow-lg p-8 mb-8">
+            <h2 id="authTitle" class="text-2xl font-semibold text-gray-800 mb-6 text-center">Admin Login</h2>
+
+            <form id="authForm" class="space-y-6">
+                <div>
+                    <label for="authName" class="block text-sm font-medium text-gray-700 mb-2 hidden">Name</label>
+                    <input type="text" id="authName" placeholder="Your Name" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent hidden">
+                </div>
+                <div>
+                    <label for="authEmail" class="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                    <input type="email" id="authEmail" required placeholder="admin@example.com" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                </div>
+                <div>
+                    <label for="authPassword" class="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                    <input type="password" id="authPassword" required placeholder="••••••••" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                </div>
+                <button type="submit" id="authSubmitBtn" class="w-full bg-indigo-600 text-white py-3 px-6 rounded-lg hover:bg-indigo-700 transition duration-200 font-semibold">
+                    Login
+                </button>
+            </form>
+            <p class="mt-4 text-center text-sm text-gray-600">
+                <!-- Don't have an account? <a href="#" id="toggleAuth" class="text-indigo-600 hover:underline">Register here</a> -->
+            </p>
+        </div>
+
+        <div id="dashboardSection" class="hidden">
+            <div class="flex justify-between items-center bg-white rounded-xl shadow-lg p-6 mb-8">
+                <h2 class="text-3xl font-bold text-gray-800">Dashboard</h2>
+                <div class="flex items-center space-x-4">
+                    <p class="text-lg font-medium text-gray-700">Welcome, <span id="adminNameDisplay" class="text-indigo-600"></span>!</p>
+                    <button id="logoutBtn" class="bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 transition duration-200 text-sm">Logout</button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div class="bg-white rounded-xl shadow-lg p-6 text-center">
+                    <h3 class="text-lg font-semibold text-gray-700 mb-2">Total Assessments</h3>
+                    <p id="totalAssessments" class="text-4xl font-bold text-indigo-600">0</p>
+                </div>
+                <div class="bg-white rounded-xl shadow-lg p-6 text-center">
+                    <h3 class="text-lg font-semibold text-gray-700 mb-2">Risk Distribution</h3>
+                    <p class="text-md text-red-500">High: <span id="highRiskCount">0</span></p>
+                    <p class="text-md text-yellow-500">Mid: <span id="midRiskCount">0</span></p>
+                    <p class="text-md text-green-500">Low: <span id="lowRiskCount">0</span></p>
+                </div>
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <h3 class="text-lg font-semibold text-gray-700 mb-4">Recent Assessments</h3>
+                    <ul id="recentAssessmentsList" class="space-y-2">
+                        <li class="text-gray-500">No recent data.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-lg p-8">
+                <div class="flex flex-col md:flex-row justify-between items-center mb-6 space-y-4 md:space-y-0">
+                    <h2 class="text-2xl font-semibold text-gray-800">All Assessments</h2>
+                    <div class="flex space-x-3">
+                        <input type="text" id="searchInput" placeholder="Search by patient name..." class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                        <button id="exportExcelBtn" class="bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600 transition duration-200 flex items-center">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7m-4-7l-4-4m0 0l-4 4m4-4v12"></path></svg>
+                            Export to Excel
+                        </button>
+                        <button id="clearAllBtn" class="bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 transition duration-200 flex items-center">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            Clear All Records
+                        </button>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50 sticky top-0 z-10">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Age</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">BP</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sugar</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Temp</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Overall Risk</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="assessmentTableBody" class="bg-white divide-y divide-gray-200">
+                            <tr><td colspan="8" class="px-6 py-4 text-center text-gray-500">No assessments found.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="flex justify-between items-center mt-6">
+                    <button id="prevPageBtn" class="bg-indigo-500 text-white py-2 px-4 rounded-lg hover:bg-indigo-600 transition duration-200 disabled:opacity-50" disabled>Previous</button>
+                    <span class="text-gray-700">Page <span id="currentPage">1</span> of <span id="totalPages">1</span></span>
+                    <button id="nextPageBtn" class="bg-indigo-500 text-white py-2 px-4 rounded-lg hover:bg-indigo-600 transition duration-200 disabled:opacity-50" disabled>Next</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = ''; // Your server is serving from root, so relative path is fine
+        const AUTH_TOKEN_KEY = 'adminToken';
+        const authSection = document.getElementById('authSection');
+        const dashboardSection = document.getElementById('dashboardSection');
+        const authTitle = document.getElementById('authTitle');
+        const authNameInput = document.getElementById('authName');
+        const toggleAuthBtn = document.getElementById('toggleAuth');
+        const authForm = document.getElementById('authForm');
+        const authSubmitBtn = document.getElementById('authSubmitBtn');
+        const adminNameDisplay = document.getElementById('adminNameDisplay');
+        const logoutBtn = document.getElementById('logoutBtn');
+
+        const assessmentTableBody = document.getElementById('assessmentTableBody');
+        const searchInput = document.getElementById('searchInput');
+        const exportExcelBtn = document.getElementById('exportExcelBtn');
+        const clearAllBtn = document.getElementById('clearAllBtn');
+        const prevPageBtn = document.getElementById('prevPageBtn');
+        const nextPageBtn = document.getElementById('nextPageBtn');
+        const currentPageSpan = document.getElementById('currentPage');
+        const totalPagesSpan = document.getElementById('totalPages');
+
+        const totalAssessmentsSpan = document.getElementById('totalAssessments');
+        const highRiskCountSpan = document.getElementById('highRiskCount');
+        const midRiskCountSpan = document.getElementById('midRiskCount');
+        const lowRiskCountSpan = document.getElementById('lowRiskCount');
+        const recentAssessmentsList = document.getElementById('recentAssessmentsList');
+
+        let currentPage = 1;
+        const recordsPerPage = 10;
+        let totalPages = 1;
+        let isRegisterMode = false;
+
+        // --- Utility Functions ---
+        function showAlert(type, message) {
+            const alertContainer = document.getElementById('alertContainer');
+            const successAlert = document.getElementById('successAlert');
+            const errorAlert = document.getElementById('errorAlert');
+
+            successAlert.classList.add('hidden');
+            errorAlert.classList.add('hidden');
+            alertContainer.classList.remove('hidden');
+
+            let targetAlert, targetMessage;
+            if (type === 'success') {
+                targetAlert = successAlert;
+                targetMessage = document.getElementById('successMessage');
+            } else {
+                targetAlert = errorAlert;
+                targetMessage = document.getElementById('errorMessage');
+            }
+
+            targetMessage.textContent = message;
+            targetAlert.classList.remove('hidden');
+
+            setTimeout(() => {
+                targetAlert.classList.add('hidden');
+                alertContainer.classList.add('hidden');
+            }, 5000);
+        }
+
+        function getAuthHeader() {
+            const token = localStorage.getItem(AUTH_TOKEN_KEY);
+            return token ? { 'Authorization': `Bearer ${token}` } : {};
+        }
+
+        function isLoggedIn() {
+            return localStorage.getItem(AUTH_TOKEN_KEY) !== null;
+        }
+
+        function showAuthSection() {
+            authSection.classList.remove('hidden');
+            dashboardSection.classList.add('hidden');
+        }
+
+        function showDashboardSection() {
+            authSection.classList.add('hidden');
+            dashboardSection.classList.remove('hidden');
+        }
+
+        async function updateDashboard() {
+            if (!isLoggedIn()) {
+                showAuthSection();
+                return;
+            }
+            showDashboardSection();
+            const adminData = JSON.parse(localStorage.getItem('adminData'));
+            if (adminData && adminData.name) {
+                adminNameDisplay.textContent = adminData.name;
+            }
+
+            await fetchAssessments();
+            await fetchStatistics();
+        }
+
+        // --- Authentication Logic ---
+        toggleAuthBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            isRegisterMode = !isRegisterMode;
+            if (isRegisterMode) {
+                authTitle.textContent = 'Admin Register';
+                authSubmitBtn.textContent = 'Register';
+                authNameInput.classList.remove('hidden');
+                authNameInput.setAttribute('required', 'true');
+                toggleAuthBtn.textContent = 'Login here';
+            } else {
+                authTitle.textContent = 'Admin Login';
+                authSubmitBtn.textContent = 'Login';
+                authNameInput.classList.add('hidden');
+                authNameInput.removeAttribute('required');
+                toggleAuthBtn.textContent = 'Register here';
+            }
+        });
+
+        authForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('authEmail').value;
+            const password = document.getElementById('authPassword').value;
+            const name = isRegisterMode ? document.getElementById('authName').value : null;
+
+            authSubmitBtn.disabled = true;
+            authSubmitBtn.textContent = isRegisterMode ? 'Registering...' : 'Logging in...';
+
+            try {
+                const endpoint = isRegisterMode ? '/api/admin/register' : '/api/admin/login';
+                const body = isRegisterMode ? { name, email, password } : { email, password };
+
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    localStorage.setItem(AUTH_TOKEN_KEY, data.token);
+                    localStorage.setItem('adminData', JSON.stringify(data.admin));
+                    showAlert('success', `Welcome ${data.admin.name || data.admin.email}!`);
+                    updateDashboard();
+                } else {
+                    showAlert('error', data.error || 'Authentication failed.');
+                }
+            } catch (error) {
+                console.error('Auth error:', error);
+                showAlert('error', 'Network error or server unavailable.');
+            } finally {
+                authSubmitBtn.disabled = false;
+                authSubmitBtn.textContent = isRegisterMode ? 'Register' : 'Login';
+            }
+        });
+
+        logoutBtn.addEventListener('click', () => {
+            localStorage.removeItem(AUTH_TOKEN_KEY);
+            localStorage.removeItem('adminData');
+            showAlert('success', 'Logged out successfully.');
+            showAuthSection();
+            authForm.reset(); // Clear form fields on logout
+        });
+
+        // --- Data Management Logic ---
+        async function fetchAssessments() {
+            try {
+                const searchParam = searchInput.value.trim();
+                const response = await fetch(`${API_BASE_URL}/api/admin/assessments?page=${currentPage}&limit=${recordsPerPage}&search=${searchParam}`, {
+                    headers: getAuthHeader()
+                });
+
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        showAlert('error', 'Session expired. Please log in again.');
+                        localStorage.removeItem(AUTH_TOKEN_KEY);
+                        localStorage.removeItem('adminData');
+                        showAuthSection();
+                        return;
+                    }
+                    throw new Error('Failed to fetch assessments');
+                }
+
+                const { assessments, pagination } = await response.json();
+                renderAssessments(assessments);
+
+                currentPage = pagination.page;
+                totalPages = pagination.pages;
+                currentPageSpan.textContent = currentPage;
+                totalPagesSpan.textContent = totalPages;
+
+                prevPageBtn.disabled = currentPage === 1;
+                nextPageBtn.disabled = currentPage === totalPages;
+
+            } catch (error) {
+                console.error('Error fetching assessments:', error);
+                showAlert('error', error.message || 'Failed to load assessments.');
+            }
+        }
+
+        function renderAssessments(assessments) {
+            assessmentTableBody.innerHTML = '';
+            if (assessments.length === 0) {
+                assessmentTableBody.innerHTML = '<tr><td colspan="8" class="px-6 py-4 text-center text-gray-500">No assessments found.</td></tr>';
+                return;
+            }
+
+            assessments.forEach(assessment => {
+                const row = document.createElement('tr');
+                const createdAt = new Date(assessment.createdAt);
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800">${createdAt.toLocaleDateString()} ${createdAt.toLocaleTimeString()}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${assessment.patientName}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800">${assessment.age}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800">${assessment.systolic}/${assessment.diastolic}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800">${assessment.bloodSugar} ${assessment.isFasting ? '(F)' : ''}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800">${assessment.temperature}°C</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm ${
+                        assessment.overallRisk.includes('Low') ? 'text-green-600 font-semibold' :
+                        assessment.overallRisk.includes('Mid') ? 'text-yellow-600 font-semibold' :
+                        'text-red-600 font-semibold'
+                    }">${assessment.overallRisk}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <button data-id="${assessment.id}" class="delete-btn text-red-600 hover:text-red-900 ml-4">Delete</button>
+                    </td>
+                `;
+                assessmentTableBody.appendChild(row);
+            });
+
+            // Add event listeners for delete buttons
+            document.querySelectorAll('.delete-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const id = e.target.dataset.id;
+                    if (confirm(`Are you sure you want to delete assessment for ID: ${id}?`)) {
+                        deleteAssessment(id);
+                    }
+                });
+            });
+        }
+
+        async function deleteAssessment(id) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/admin/assessments/${id}`, {
+                    method: 'DELETE',
+                    headers: getAuthHeader()
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showAlert('success', data.message);
+                    fetchAssessments(); // Refresh table
+                    fetchStatistics(); // Update stats
+                } else {
+                    showAlert('error', data.error || 'Failed to delete assessment.');
+                }
+            } catch (error) {
+                console.error('Error deleting assessment:', error);
+                showAlert('error', 'Network error or server unavailable.');
+            }
+        }
+
+        async function clearAllAssessments() {
+            if (!confirm('Are you absolutely sure you want to delete ALL assessment records? This action cannot be undone.')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/admin/assessments`, {
+                    method: 'DELETE',
+                    headers: getAuthHeader()
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showAlert('success', data.message);
+                    fetchAssessments(); // Clear table
+                    fetchStatistics(); // Update stats
+                } else {
+                    showAlert('error', data.error || 'Failed to clear all assessments.');
+                }
+            } catch (error) {
+                console.error('Error clearing all assessments:', error);
+                showAlert('error', 'Network error or server unavailable.');
+            }
+        }
+
+        async function fetchStatistics() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/admin/stats`, {
+                    headers: getAuthHeader()
+                });
+
+                if (!response.ok) {
+                     if (response.status === 401) { /* handled by fetchAssessments already */ return; }
+                    throw new Error('Failed to fetch statistics');
+                }
+
+                const data = await response.json();
+                totalAssessmentsSpan.textContent = data.totalAssessments;
+                highRiskCountSpan.textContent = data.riskDistribution.high;
+                midRiskCountSpan.textContent = data.riskDistribution.mid;
+                lowRiskCountSpan.textContent = data.riskDistribution.low;
+
+                recentAssessmentsList.innerHTML = '';
+                if (data.recentAssessments.length > 0) {
+                    data.recentAssessments.forEach(item => {
+                        const li = document.createElement('li');
+                        const createdAt = new Date(item.createdAt);
+                        li.className = 'flex justify-between items-center text-gray-700 text-sm';
+                        li.innerHTML = `
+                            <span>${item.patientName}</span>
+                            <span class="${
+                                item.overallRisk.includes('Low') ? 'text-green-600' :
+                                item.overallRisk.includes('Mid') ? 'text-yellow-600' :
+                                'text-red-600'
+                            }">${item.overallRisk.replace(/ \(Medical Alert\)/, '')}</span>
+                            <span class="text-gray-500 text-xs">${createdAt.toLocaleDateString()}</span>
+                        `;
+                        recentAssessmentsList.appendChild(li);
+                    });
+                } else {
+                    recentAssessmentsList.innerHTML = '<li class="text-gray-500 text-center text-sm">No recent data.</li>';
+                }
+
+            } catch (error) {
+                console.error('Error fetching statistics:', error);
+                showAlert('error', error.message || 'Failed to load statistics.');
+            }
+        }
+
+        async function exportToExcel() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/admin/assessments/export`, {
+                    headers: getAuthHeader()
+                });
+
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        showAlert('error', 'Session expired. Please log in again to export data.');
+                        localStorage.removeItem(AUTH_TOKEN_KEY);
+                        localStorage.removeItem('adminData');
+                        showAuthSection();
+                        return;
+                    }
+                    throw new Error('Failed to fetch data for export');
+                }
+
+                const data = await response.json();
+
+                if (data.length === 0) {
+                    showAlert('info', 'No data to export.');
+                    return;
+                }
+
+                const worksheet = XLSX.utils.json_to_sheet(data);
+                const workbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(workbook, worksheet, 'MaternalHealthData');
+
+                const filename = `Maternal_Health_Data_${new Date().toISOString().slice(0,10)}.xlsx`;
+                XLSX.writeFile(workbook, filename);
+                showAlert('success', 'Data exported to Excel successfully!');
+
+            } catch (error) {
+                console.error('Error exporting data:', error);
+                showAlert('error', error.message || 'Failed to export data.');
+            }
+        }
+
+        // --- Event Listeners ---
+        searchInput.addEventListener('input', () => {
+            currentPage = 1; // Reset to first page on search
+            fetchAssessments();
+        });
+
+        prevPageBtn.addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                fetchAssessments();
+            }
+        });
+
+        nextPageBtn.addEventListener('click', () => {
+            if (currentPage < totalPages) {
+                currentPage++;
+                fetchAssessments();
+            }
+        });
+
+        exportExcelBtn.addEventListener('click', exportToExcel);
+        clearAllBtn.addEventListener('click', clearAllAssessments);
+
+
+        // --- Initial Load ---
+        document.addEventListener('DOMContentLoaded', () => {
+            updateDashboard(); // Check auth status and load dashboard or login
+        });
+    </script>
+</body>
+</html>

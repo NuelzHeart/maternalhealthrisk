@@ -1,0 +1,44 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+
+model Admin {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("admins")
+}
+
+model HealthAssessment {
+  id              Int      @id @default(autoincrement())
+  patientName     String   @map("patient_name")
+  age             Int
+  systolic        Int
+  diastolic       Int
+  bloodSugar      Int      @map("blood_sugar")
+  temperature     Float
+  isFasting       Boolean  @map("is_fasting")
+  bpRiskLevel     String   @map("bp_risk_level")
+  bpRiskScore     Int      @map("bp_risk_score")
+  sugarRiskLevel  String   @map("sugar_risk_level")
+  sugarRiskScore  Int      @map("sugar_risk_score")
+  tempRiskLevel   String   @map("temp_risk_level")
+  tempRiskScore   Int      @map("temp_risk_score")
+  totalScore      Int      @map("total_score")
+  overallRisk     String   @map("overall_risk")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("health_assessments")
+}
